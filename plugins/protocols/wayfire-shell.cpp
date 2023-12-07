@@ -448,6 +448,11 @@ class wayfire_shell_protocol_impl : public wf::plugin_interface_t
 
     void fini() override
     {
+        if (wf::get_core().get_current_state() == wf::compositor_state_t::SHUTDOWN)
+        {
+            return;
+        }
+
         wl_global_destroy(wf_shell->shell_manager);
         delete wf_shell;
     }

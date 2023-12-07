@@ -705,7 +705,7 @@ void program_t::free_resources()
 {
     for (int i = 0; i < wf::TEXTURE_TYPE_ALL; i++)
     {
-        if (this->priv->id[i])
+        if (this->priv && this->priv->id[i])
         {
             GL_CALL(glDeleteProgram(priv->id[i]));
             this->priv->id[i] = 0;
