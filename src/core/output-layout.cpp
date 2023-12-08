@@ -205,6 +205,7 @@ bool output_state_t::operator ==(const output_state_t& other) const
     eq &= (mode.refresh == other.mode.refresh);
     eq &= (transform == other.transform);
     eq &= (scale == other.scale);
+    eq &= (vrr == other.vrr);
 
     return eq;
 }
@@ -231,6 +232,7 @@ struct output_layout_output_t
     wf::option_wrapper_t<wf::output_config::position_t> position_opt;
     wf::option_wrapper_t<double> scale_opt;
     wf::option_wrapper_t<std::string> transform_opt;
+    wf::option_wrapper_t<bool> vrr_opt;
 
     wf::option_wrapper_t<bool> use_ext_config{
         "workarounds/use_external_output_configuration"};
@@ -243,6 +245,7 @@ struct output_layout_output_t
         position_opt.load_option(name + "/position");
         scale_opt.load_option(name + "/scale");
         transform_opt.load_option(name + "/transform");
+        vrr_opt.load_option(name + "/vrr");
     }
 
     output_layout_output_t(wlr_output *handle)
@@ -436,6 +439,7 @@ struct output_layout_output_t
 
         state.scale     = scale_opt;
         state.transform = get_transform_from_string(transform_opt);
+        state.vrr = vrr_opt;
         return state;
     }
 
@@ -557,7 +561,8 @@ struct output_layout_output_t
             /* Do not modeset if nothing changed */
             if ((handle->current_mode->width == mode.width) &&
                 (handle->current_mode->height == mode.height) &&
-                (handle->current_mode->refresh == mode.refresh))
+                (handle->current_mode->refresh == mode.refresh) &&
+                ((handle->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED) == current_state.vrr))
             {
                 /* Commit the enabling of the output */
                 wlr_output_commit(handle);
@@ -579,6 +584,29 @@ struct output_layout_output_t
                 "(might not work)");
 
             wlr_output_set_custom_mode(handle, mode.width, mode.height, mode.refresh);
+        }
+
+        if (!is_nested_compositor)
+        {
+            if ((handle->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_DISABLED) && current_state.vrr)
+            {
+                wlr_output_enable_adaptive_sync(handle, current_state.vrr);
+                wlr_output_commit(handle);
+                if (handle->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_DISABLED)
+                {
+                    LOGE("Failed to enable adaptive sync on output: ", handle->name);
+                    wlr_output_enable_adaptive_sync(handle, false);
+                } else
+                {
+                    LOGI("Enabled adaptive sync on output: ", handle->name);
+                }
+            }
+
+            if ((handle->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED) && !current_state.vrr)
+            {
+                wlr_output_enable_adaptive_sync(handle, false);
+                LOGI("Disabled adaptive sync on output: ", handle->name);
+            }
         }
 
         wlr_output_commit(handle);
@@ -978,6 +1006,7 @@ class output_layout_t::impl
             state.position  = {head->state.x, head->state.y};
             state.scale     = head->state.scale;
             state.transform = head->state.transform;
+            state.vrr = head->state.adaptive_sync_enabled;
         }
 
         return result;
