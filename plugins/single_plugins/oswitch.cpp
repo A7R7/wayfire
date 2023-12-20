@@ -11,13 +11,19 @@ class wayfire_oswitch : public wf::plugin_interface_t
 {
     wf::wl_idle_call idle_switch_output;
 
-    wf::output_t* get_output_relative(wf::output_t *output, int step)
+    wf::output_t* get_output_relative(int step)
     {
-        /* get the target output n steps after the provided output
-         * if the provided output's index is i, and if there're n monitors
+        /* get the target output n steps after current output
+         * if current output's index is i, and if there're n monitors
          * then return the (i + step) mod n th monitor */
+        auto current_output = wf::get_core().seat->get_active_output();
         auto os = wf::get_core().output_layout->get_outputs();
-        auto it = std::find(os.begin(), os.end(), output);
+        auto it = std::find(os.begin(), os.end(), current_output);
+        if (it == os.end())
+        {
+            LOGI("Current output not found in output list");
+            return current_output;
+        }
         int size = os.size();
         int current_index = it - os.begin();
         int target_index = ((current_index + step) % size + size) % size;
@@ -50,32 +56,28 @@ class wayfire_oswitch : public wf::plugin_interface_t
 
     wf::activator_callback next_output = [=] (auto)
     {
-        auto current_output = wf::get_core().seat->get_active_output();
-        auto target_output = get_output_relative(current_output, 1);
+        auto target_output = get_output_relative(1);
         switch_to_output(target_output);
         return true;
     };
 
     wf::activator_callback next_output_with_window = [=] (auto)
     {
-        auto current_output = wf::get_core().seat->get_active_output();
-        auto target_output = get_output_relative(current_output, 1);
+        auto target_output = get_output_relative(1);
         switch_to_output_with_window(target_output);
         return true;
     };
 
     wf::activator_callback prev_output = [=] (auto)
     {
-        auto current_output = wf::get_core().seat->get_active_output();
-        auto target_output = get_output_relative(current_output, -1);
+        auto target_output = get_output_relative(-1);
         switch_to_output(target_output);
         return true;
     };
 
     wf::activator_callback prev_output_with_window = [=] (auto)
     {
-        auto current_output = wf::get_core().seat->get_active_output();
-        auto target_output = get_output_relative(current_output, -1);
+        auto target_output = get_output_relative(-1);
         switch_to_output_with_window(target_output);
         return true;
     };
